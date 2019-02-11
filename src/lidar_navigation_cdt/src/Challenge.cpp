@@ -205,18 +205,27 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
 
   ////// Put your code here ////////////////////////////////////
+  // traversability = 1 means traversable
+  Position best_pos;
+  Position current_pos;
+  double best_dist = 100000;
+  double current_dist = 0;
+
+  for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
+    if (outputMap.at("traversability", *iterator) > 0.8) {
+      outputMap.getPosition(*iterator, current_pos);
+      current_dist = (pos_goal - current_pos).norm();
+      if (current_dist < best_dist) {
+        best_dist = current_dist;
+        best_pos = current_pos;
+      }
+    }
+  }
+  std::cout << "next distance" << best_dist << "\n";
 
 
-
-
-
-
-
-
-
-
-
-
+  
+  pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
 
   ////// Put your code here ////////////////////////////////////
 
@@ -233,8 +242,8 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
   // REMOVE THIS WHEN YOUR ARE DEVELOPING ----------------
   // create a fake carrot - replace with a good carrot
-  std::cout << "REPLACE FAKE CARROT!\n";
-  pose_chosen_carrot.translation() = Eigen::Vector3d(1.0,0,0);
+  //std::cout << "REPLACE FAKE CARROT!\n";
+  //pose_chosen_carrot.translation() = Eigen::Vector3d(1.0,0,0);
   // REMOVE THIS -----------------------------------------
 
   return true;
