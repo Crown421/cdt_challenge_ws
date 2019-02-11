@@ -125,3 +125,10 @@ grid_map_filters:
     params:
       input_layer: traversability
       output_layer: traversability_clean
+
+  - name: traversability_mean
+    type: gridMapFilters/MeanInRadiusFilter
+    params:
+      input_layer: traversability
+      output_layer: traversability_mean
+      radius: 1
