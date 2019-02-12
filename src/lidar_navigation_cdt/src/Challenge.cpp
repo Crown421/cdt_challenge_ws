@@ -230,7 +230,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   int i = 0;
   std::cout << "Entering grid map iterator loop" << std::endl;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
-    if (outputMap.at("traversability_mean", *iterator) > 0.9) {
+    if (outputMap.at("traversability_mean", *iterator) > 0.92) {
       outputMap.getPosition(*iterator, current_pos);
       double dist_from_robot = (current_pos - pos_robot).norm();
       if (dist_from_robot < 2) {
@@ -265,13 +265,6 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   if (verboseTimer_) std::cout << toc().count() << "ms: publish output\n";
 
   std::cout << "finish - carrot planner\n\n";
-  
-
-  // REMOVE THIS WHEN YOUR ARE DEVELOPING ----------------
-  // create a fake carrot - replace with a good carrot
-  //std::cout << "REPLACE FAKE CARROT!\n";
-  //pose_chosen_carrot.translation() = Eigen::Vector3d(1.0,0,0);
-  // REMOVE THIS -----------------------------------------
 
   return true;
 }
