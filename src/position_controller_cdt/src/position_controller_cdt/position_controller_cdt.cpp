@@ -70,12 +70,12 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   //std::cout << Eigen:arg(ang) << std::endl;
   double pathAngle = atan2((y_currentgoal - y_pos), (x_currentgoal - x_pos));
 
-  double error_path_angle = current_yaw - pathAngle;
+  double error_path_angle = pathAngle - current_yaw;
   error_path_angle = constrainAngle(error_path_angle);
 
   // compute the P control output:
-  double error_carrot_yaw = current_yaw - goal_yaw;
-  double headingError = constrainAngle(error_carrot_yaw);
+  double error_carr_yaw = goal_yaw - current_yaw;
+  double error_carr_ang = constrainAngle(error_carr_yaw);
 
   // positional control
   // double x_error =  (cos(x_currentgoal) + sin(y_currentgoal)) - (cos(x_pos) + sin(y_pos));
@@ -84,39 +84,57 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   double x_error_global = x_currentgoal - x_pos;
   double y_error_global = y_currentgoal - y_pos; 
 
-  //TODO needs tuning
-  double angular_gain_p_ = 0.01;
-  double ang_gain_raw = 0.5 * (x_error_global*x_error_global);
-  double max_ang_gain = 0.7;
-  double path_ang_gain = (ang_gain_raw < max_ang_gain) ? ang_gain_raw : max_ang_gain;
-  angular_velocity = -headingError * angular_gain_p_- path_ang_gain * error_path_angle;
+  double x_error_rob = x_error_global * cos(current_yaw) + y_error_global * sin(current_yaw);
+  double y_error_rob = y_error_global * -sin(current_yaw) + y_error_global * cos(current_yaw);
 
-  //double pos_error = sqrt( pow(x_error, 2.0) + pow(y_error, 2.0));
+  double forward_gain_P = 0.7;
+  double forward_gain_I = 0;
+  linear_forward_x = forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
 
-  double forward_gain = 0.5;
-  double strafe_gain = 0.5; 
-  //double rel_vel = forward_gain * pos_error;
+  double strafe_gain_P = 0.3;
+  double strafe_gain_I = 0;
+  linear_forward_y = strafe_gain_P * y_error_rob - strafe_gain_I * int_error_y;
 
-  double forward_speed = forward_gain * x_error_global;
-  double strafe_speed = strafe_gain * y_error_global;
+  // angular trickery
+  // path
 
-  double for_vel_mag = sqrt(forward_speed*forward_speed + strafe_speed*strafe_speed);
-  double for_vel_angle = atan2(forward_speed, strafe_speed);
+  double path_ang_gain_P = 0.8;
+  //double max_path_adjust_thresh = 0.3; //m
+  double path_ang_gain_I = 0.00;
+  //double ang_speed_path_contr = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
+  double ang_speed_path = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
 
-  double diffAngle = current_yaw - for_vel_angle;
+  //double ang_speed_path = (x_error_rob < max_path_adjust_thresh) ? 0 : ang_speed_path_contr;
 
-  linear_forward_x = for_vel_mag*cos(diffAngle);
-  linear_forward_y = 0.1*for_vel_mag*sin(diffAngle);
 
-  std::cout << "current_yaw: " << current_yaw << ", raw error: " << error_carrot_yaw
-            << ", constrained error: " << headingError << ", des ang vel: " << angular_velocity << std::endl;
+  double carr_ang_gain_P = 0.6;
+  double carr_ang_gain_I = 0.0;
+  double ang_speed_head = carr_ang_gain_P * error_carr_ang + carr_ang_gain_I * int_error_carr_ang;
+
+  double switch_thresh = 0.7;
+  angular_velocity = (x_error_rob < switch_thresh) ? ang_speed_head : ang_speed_path;
+  //angular_velocity = ang_speed_path;
+
+  // x,y error in robot coordinates
+  int_error_x += x_error_rob;
+  int_error_y += y_error_rob;
+  int_error_path_ang = error_path_angle;
+  int_error_carr_ang = error_carr_ang;
+
+  past_utime = current_utime;
 
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
+
+  std::cout << "current_yaw: " << current_yaw << ", raw error: " << error_carr_yaw
+            << ", constrained error: " << error_carr_ang << ", des ang vel: " << angular_velocity << std::endl;
+
+  
 
   // set outputs
   output_linear_velocity_ = Eigen::Vector3d(linear_forward_x, linear_forward_y, 0);
   output_angular_velocity_ = Eigen::Vector3d(0,0, angular_velocity) ;
+
 
   // geometry_msgs::WrenchStamped ws;
   // //ws.header = msg.header;

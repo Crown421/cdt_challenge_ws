@@ -43,4 +43,7 @@ class PositionController{
     Eigen::Vector3d output_angular_velocity_;
     int64_t past_utime;
     double int_error_x;
+    double int_error_y;
+    double int_error_path_ang;
+    double int_error_carr_ang;
 };
