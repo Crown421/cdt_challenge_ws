@@ -41,4 +41,6 @@ class PositionController{
     Eigen::Isometry3d current_goal_;
     Eigen::Vector3d output_linear_velocity_;
     Eigen::Vector3d output_angular_velocity_;
+    int64_t past_utime;
+    double int_error_x;
 };

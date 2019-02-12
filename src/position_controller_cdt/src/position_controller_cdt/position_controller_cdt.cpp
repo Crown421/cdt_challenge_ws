@@ -1,8 +1,10 @@
 #include "position_controller_cdt/position_controller_cdt.hpp"
 #include "math.h"
+#include <geometry_msgs/WrenchStamped.h>
 
 PositionController::PositionController(){
   std::cout << "Finished setting up PositionController\n";
+  past_utime = 0;
 }
 
 // takes Quaterniod coordinates, and writes the passed-by-reference roll, pitch and yaw
@@ -58,33 +60,55 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   double y_currentgoal = current_goal_.translation().y();
   
 
+  // add heading yaw difference: 
+  // Eigen::ArrayXXd ang(1, 2);
+  // ang(0, 0) = (y_currentgoal - y_pos);
+  // ang(0, 1) = (x_currentgoal - x_pos);
+  // std::cout << ang;
 
+  // Eigen::ArrayBase pathAngle(Eigen::arg(ang));
+  //std::cout << Eigen:arg(ang) << std::endl;
+  double pathAngle = atan2((y_currentgoal - y_pos), (x_currentgoal - x_pos));
+
+  double error_path_angle = current_yaw - pathAngle;
+  error_path_angle = constrainAngle(error_path_angle);
 
   // compute the P control output:
-  double headingErrorRaw = current_yaw - goal_yaw;
-  double headingError = constrainAngle(headingErrorRaw);
-
-  //TODO needs tuning
-  double angular_gain_p_ = 0.1;
-  angular_velocity = -headingError * angular_gain_p_;
+  double error_carrot_yaw = current_yaw - goal_yaw;
+  double headingError = constrainAngle(error_carrot_yaw);
 
   // positional control
-  double x_error =  (cos(x_currentgoal) + sin(y_currentgoal) - (cos(x_pos) + sin(y_pos));
-  double y_error =  (-sin(x_currentgoal) + cos(y_currentgoal) - (-sin(x_pos) + cos(y_pos)) ;
+  // double x_error =  (cos(x_currentgoal) + sin(y_currentgoal)) - (cos(x_pos) + sin(y_pos));
+  // double y_error =  (-sin(x_currentgoal) + cos(y_currentgoal)) - (-sin(x_pos) + cos(y_pos));
+
+  double x_error_global = x_currentgoal - x_pos;
+  double y_error_global = y_currentgoal - y_pos; 
+
+  //TODO needs tuning
+  double angular_gain_p_ = 0.01;
+  double ang_gain_raw = 0.5 * (x_error_global*x_error_global);
+  double max_ang_gain = 0.7;
+  double path_ang_gain = (ang_gain_raw < max_ang_gain) ? ang_gain_raw : max_ang_gain;
+  angular_velocity = -headingError * angular_gain_p_- path_ang_gain * error_path_angle;
 
   //double pos_error = sqrt( pow(x_error, 2.0) + pow(y_error, 2.0));
 
-  double forward_gain = 1;
+  double forward_gain = 0.5;
   double strafe_gain = 0.5; 
   //double rel_vel = forward_gain * pos_error;
 
-  forward_speed = forward_gain * x_error;
-  strafe_speed = strafe_gain * y_error;
+  double forward_speed = forward_gain * x_error_global;
+  double strafe_speed = strafe_gain * y_error_global;
 
-  linear_forward_x = cos(current_yaw) * rel_vel;
-  linear_forward_y = sin(current_yaw) * rel_vel;
+  double for_vel_mag = sqrt(forward_speed*forward_speed + strafe_speed*strafe_speed);
+  double for_vel_angle = atan2(forward_speed, strafe_speed);
 
-  std::cout << "current_yaw: " << current_yaw << ", raw error: " << headingErrorRaw
+  double diffAngle = current_yaw - for_vel_angle;
+
+  linear_forward_x = for_vel_mag*cos(diffAngle);
+  linear_forward_y = 0.1*for_vel_mag*sin(diffAngle);
+
+  std::cout << "current_yaw: " << current_yaw << ", raw error: " << error_carrot_yaw
             << ", constrained error: " << headingError << ", des ang vel: " << angular_velocity << std::endl;
 
   ///////////////////////////////////////////////////////////////////////
@@ -93,5 +117,19 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   // set outputs
   output_linear_velocity_ = Eigen::Vector3d(linear_forward_x, linear_forward_y, 0);
   output_angular_velocity_ = Eigen::Vector3d(0,0, angular_velocity) ;
+
+  // geometry_msgs::WrenchStamped ws;
+  // //ws.header = msg.header;
+  // ws.header.frame_id = "base";
+  // ws.wrench.force.x = output_linear_velocity_[0]; /// insert your variable names
+  // ws.wrench.force.y = output_linear_velocity_[1];
+  // ws.wrench.force.z = 0;
+  // ws.wrench.torque.x = 0;
+  // ws.wrench.torque.y = 0;
+  // // for some reason rviz wont visualise this if negative
+  // ws.wrench.torque.z = fabs( output_angular_velocity_[2]);
+
+  // visualizeVelocityCombinedPub_.publish(ws);
+
   return SEND_COMMAND;
 }
