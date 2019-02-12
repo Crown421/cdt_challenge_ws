@@ -105,7 +105,10 @@ void NavigationDemo::callback(const grid_map_msgs::GridMap& message)
   }
 
   // The all important position goal - get the robot there
-  Position pos_goal(8.5,4.0);
+  // Original Goal
+  // Position pos_goal(8.5,4.0);
+  // Harder Goal
+  Position pos_goal(14.5, 4.0);
 
   Eigen::Isometry3d pose_robot = Eigen::Isometry3d::Identity();
   if(demoMode_){ // demoMode
@@ -219,18 +222,22 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   //grid_map::GridMapCvProcessing::changeResolution(outputMap, outputMap, outputMap.getResolution()*8);
   //std::cout << "Downsizing complete" << std::endl;
 
-  cv::Mat originalImage, erodeImage;
+  cv::Mat originalImage, erodeImage, smoothedImage;
+  int erosion_size = 45;  
+  cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(erosion_size, erosion_size));
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
-  cv::imwrite( "originalImage.png", originalImage );
 
-  cv::blur(originalImage, erodeImage, cv::Size_<int>(80,80));
-  
-  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(erodeImage, "traversability_mean", outputMap, 0.0, 1.0);
+  cv::erode(originalImage, erodeImage, element);
+  //cv::blur(erodeImage, smoothedImage, cv::Size_<int>(80,80));
+
+
+  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(erodeImage, "eroded_traversability", outputMap, 0.0, 1.0);  
+  //GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "smoothed_traversability", outputMap, 0.0, 1.0);
 
   int i = 0;
   std::cout << "Entering grid map iterator loop" << std::endl;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
-    if (outputMap.at("traversability_mean", *iterator) > 0.92) {
+    if (outputMap.at("eroded_traversability", *iterator) > 0.95) {
       outputMap.getPosition(*iterator, current_pos);
       double dist_from_robot = (current_pos - pos_robot).norm();
       if (dist_from_robot < 2) {
