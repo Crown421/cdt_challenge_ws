@@ -50,4 +50,6 @@ class Pass{
     free_gait_msgs::SendAction actionSrv_;
     rocoma_msgs::SwitchController controllerSrv_;
     anymal_msgs::SwitchController modeSrv_;
+    ros::Publisher visualizeVelocityGoalPub_;
+
 };

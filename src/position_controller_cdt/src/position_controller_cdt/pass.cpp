@@ -3,7 +3,9 @@
 using namespace std;
 
 Pass::Pass(ros::NodeHandle node_) {
+  // subscribe to stop command, emergency signal?
   stopSub_     = node_.subscribe(std::string("/stop_walking"), 100, &Pass::stopWalkingHandler, this);
+  // current position from built-in position estimation
   poseSub_     = node_.subscribe(std::string("/state_estimator/pose_in_odom"), 100, &Pass::poseHandler, this);
 
   drivingRvizSub_  = node_.subscribe(std::string("/goal"), 100, &Pass::newDrivingGoalRvizHandler, this);
@@ -15,6 +17,7 @@ Pass::Pass(ros::NodeHandle node_) {
   // diagnostics:
   visualizeCurrentGoalPub_ = node_.advertise<geometry_msgs::PoseStamped>("/position_controller_current_goal", 10);
   visualizeRemainingGoalsPub_ = node_.advertise<geometry_msgs::PoseArray>("/position_controller_remaining_goals", 10);
+  //visualizeVelocityGoalPub_ = node_.advertise<geometry_msgs::WrenchStamped>("/position_controller/velocity_goal", 10);
 
   positionController_ = new PositionController();
 
@@ -98,7 +101,7 @@ void Pass::poseHandler(const geometry_msgs::PoseWithCovarianceStampedConstPtr& m
   Eigen::Isometry3d msg_pose = Eigen::Isometry3d::Identity();
   tf::poseMsgToEigen(msg->pose.pose, msg_pose);
 
-  std::cout << "DEVELOP POSITION CONTROLLER HERE\n";
+  //std::cout << "DEVELOP POSITION CONTROLLER HERE\n";
   // send inputs to the provided class
   FOLLOWER_OUTPUT output_mode = positionController_->computeControlCommand( msg_pose, msg_utime );
 
