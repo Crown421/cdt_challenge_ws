@@ -194,13 +194,16 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
   // Convert message to map.
   GridMap inputMap;
+  std::cout << "Converting message to input map" << std::endl;
   GridMapRosConverter::fromMessage(message, inputMap);
   // Apply filter chain.
   grid_map::GridMap outputMap;
+  std::cout << "Applying filter chain" << std::endl;
   if (!filterChain_.update(inputMap, outputMap)) {
     ROS_ERROR("Could not update the grid map filter chain!");
     return false;
   }
+  std::cout << "Finished applying filter chain" << std::endl;
   if (verboseTimer_) std::cout << toc().count() << "ms: filter chain\n";
 
 
@@ -212,11 +215,25 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   double current_dist = 0;
   double dist_from_robot = 0;
 
+  //std::cout << "Downsizing output map" << std::endl;
+  //grid_map::GridMapCvProcessing::changeResolution(outputMap, outputMap, outputMap.getResolution()*8);
+  //std::cout << "Downsizing complete" << std::endl;
+
+  cv::Mat originalImage, erodeImage;
+  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
+  cv::imwrite( "originalImage.png", originalImage );
+
+  cv::blur(originalImage, erodeImage, cv::Size_<int>(100,100));
+  
+  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(erodeImage, "traversability_mean", outputMap, 0.0, 1.0);
+
+  int i = 0;
+  std::cout << "Entering grid map iterator loop" << std::endl;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
-    if (outputMap.at("traversability_mean", *iterator) > 0.8) {
+    if (outputMap.at("traversability_mean", *iterator) > 0.9) {
       outputMap.getPosition(*iterator, current_pos);
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot < 3) {
+      if (dist_from_robot < 2) {
         current_dist = (pos_goal - current_pos).norm();
         if (current_dist < best_dist) {
           best_dist = current_dist;
@@ -224,10 +241,22 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
         }
       }
     }
-  } std::cout << "next distance" << best_dist << "\n";
-
+    ++i;
+  } 
+  std::cout << "Final i: " << i << std::endl;
+  std::cout << "next distance: " << best_dist << "\n";	
   
+  //double q1, q2, q3, q4;
+  //double euler_rot = Eigen::Euler(0,0,atan2(best_pos(0), best_pos(1)));
+  //euler_to_quat(euler_rot, q1, q2 ,q3, q4)
+
+  Eigen::Quaterniond q;
+  q = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitX())
+    * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY())
+    * Eigen::AngleAxisd(atan2(best_pos(1), best_pos(0)), Eigen::Vector3d::UnitZ());
+	
   pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
+  pose_chosen_carrot.linear() = q.matrix();
 
   ////// Put your code here ////////////////////////////////////
 
