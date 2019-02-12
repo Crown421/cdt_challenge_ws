@@ -223,7 +223,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
   cv::imwrite( "originalImage.png", originalImage );
 
-  cv::blur(originalImage, erodeImage, cv::Size_<int>(100,100));
+  cv::blur(originalImage, erodeImage, cv::Size_<int>(80,80));
   
   GridMapCvConverter::addLayerFromImage<unsigned short, 1>(erodeImage, "traversability_mean", outputMap, 0.0, 1.0);
 
@@ -245,15 +245,11 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   } 
   std::cout << "Final i: " << i << std::endl;
   std::cout << "next distance: " << best_dist << "\n";	
-  
-  //double q1, q2, q3, q4;
-  //double euler_rot = Eigen::Euler(0,0,atan2(best_pos(0), best_pos(1)));
-  //euler_to_quat(euler_rot, q1, q2 ,q3, q4)
 
   Eigen::Quaterniond q;
   q = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitX())
     * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY())
-    * Eigen::AngleAxisd(atan2(best_pos(1), best_pos(0)), Eigen::Vector3d::UnitZ());
+    * Eigen::AngleAxisd(atan2(best_pos(1)-pos_robot(1), best_pos(0)-pos_robot(0)), Eigen::Vector3d::UnitZ());
 	
   pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
   pose_chosen_carrot.linear() = q.matrix();
