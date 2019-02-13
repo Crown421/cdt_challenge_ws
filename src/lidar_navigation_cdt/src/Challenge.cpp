@@ -22,6 +22,7 @@
 
 #include <eigen_conversions/eigen_msg.h>
 
+
 using namespace grid_map;
 using namespace std::chrono;
 
@@ -156,6 +157,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   Eigen::Isometry3d pose_robot, Position pos_goal,
   Eigen::Isometry3d& pose_chosen_carrot)
 {
+  auto start = std::chrono::high_resolution_clock::now();
   std::cout << "start - carrot planner\n";
   tic();
 
@@ -165,7 +167,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   std::cout << "current distance to goal: " << current_dist_to_goal << std::endl;
 
   // If within 1.5m of goal - stop walking
-  if (current_dist_to_goal < 1.5){
+  if (current_dist_to_goal < 1){
     // Determine a carrot pose: x and y from the above. z is the robot's height.
     // yaw in the direction of the carrot. roll,pitch zero
     Eigen::Vector4d carrot_relative_pose = pose_robot.matrix().inverse()*Eigen::Vector4d(pos_goal(0), pos_goal(1), 0, 1) ;
@@ -193,54 +195,47 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
     return true;
   }
-
+    
 
   // Convert message to map.
   GridMap inputMap;
-  std::cout << "Converting message to input map" << std::endl;
   GridMapRosConverter::fromMessage(message, inputMap);
   // Apply filter chain.
   grid_map::GridMap outputMap;
-  std::cout << "Applying filter chain" << std::endl;
+  tic();
   if (!filterChain_.update(inputMap, outputMap)) {
     ROS_ERROR("Could not update the grid map filter chain!");
     return false;
   }
-  std::cout << "Finished applying filter chain" << std::endl;
   if (verboseTimer_) std::cout << toc().count() << "ms: filter chain\n";
 
 
   ////// Put your code here ////////////////////////////////////
-  // traversability = 1 means traversable
+
+  tic();
   Position best_pos;
   Position current_pos;
   double best_dist = 1000;
   double current_dist = 0;
   double dist_from_robot = 0;
 
-  //std::cout << "Downsizing output map" << std::endl;
-  //grid_map::GridMapCvProcessing::changeResolution(outputMap, outputMap, outputMap.getResolution()*8);
-  //std::cout << "Downsizing complete" << std::endl;
-
   cv::Mat originalImage, erodeImage, smoothedImage;
   int erosion_size = 45;  
-  cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(erosion_size, erosion_size));
+  cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
 
   cv::erode(originalImage, erodeImage, element);
-  //cv::blur(erodeImage, smoothedImage, cv::Size_<int>(80,80));
+  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(10,10));
 
+  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "eroded_traversability", outputMap, 0.0, 1.0);  
+  if (verboseTimer_) std::cout << toc().count() << "ms: eroding\n";
 
-  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(erodeImage, "eroded_traversability", outputMap, 0.0, 1.0);  
-  //GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "smoothed_traversability", outputMap, 0.0, 1.0);
-
-  int i = 0;
-  std::cout << "Entering grid map iterator loop" << std::endl;
+  tic();
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
     if (outputMap.at("eroded_traversability", *iterator) > 0.95) {
       outputMap.getPosition(*iterator, current_pos);
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot < 2) {
+      if (dist_from_robot < 1) {
         current_dist = (pos_goal - current_pos).norm();
         if (current_dist < best_dist) {
           best_dist = current_dist;
@@ -248,10 +243,8 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
         }
       }
     }
-    ++i;
-  } 
-  std::cout << "Final i: " << i << std::endl;
-  std::cout << "next distance: " << best_dist << "\n";	
+  } 	
+  if (verboseTimer_) std::cout << toc().count() << "ms: finding next goal\n";
 
   Eigen::Quaterniond q;
   q = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitX())
@@ -271,7 +264,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   if (verbose_) std::cout << "finished processing\n";
   if (verboseTimer_) std::cout << toc().count() << "ms: publish output\n";
 
-  std::cout << "finish - carrot planner\n\n";
+  std::cout << "finish - carrot planner\n";
+  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+  std::cout << milliseconds << "ms: lidar finished\n\n";
 
   return true;
 }
