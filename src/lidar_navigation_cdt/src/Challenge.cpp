@@ -216,13 +216,32 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
 
   cv::Mat originalImage, erodeImage, smoothedImage;
+  cv::Mat elevation, elevationInpainted, elevationSmooth, normalX, normalY, normalZ, slope, roughness;
   int erosion_size = 45;  
   cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
-  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
-  //GridMapCvConverter::toImage<unsigned short, 1>();
+  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1,
+ originalImage);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation", CV_16UC1, elevation);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation_inpainted", CV_16UC1, elevationInpainted);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation_smooth", CV_16UC1, elevationSmooth);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "normal_vectors_x", CV_16UC1, normalX);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "normal_vectors_y", CV_16UC1, normalY);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "normal_vectors_z", CV_16UC1, normalZ);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "slope", CV_16UC1, slope);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "roughness", CV_16UC1, roughness);
+
+  //cv::imwrite("~/elevation.png", elevation);
+  //cv::imwrite("~/elevationInpainted.png", elevationInpainted);
+  //cv::imwrite("~/elevationSmooth.png", elevationSmooth);
+  //cv::imwrite("~/normalX.png", normalX);
+  //cv::imwrite("~/normalY.png", normalY);
+  //cv::imwrite("~/normalZ.png", normalZ);
+  //cv::imwrite("~/slope.png", slope);
+  //cv::imwrite("~/roughness.png", roughness);
+  //cv::imwrite("~/traversability.png", originalImage);
 
   cv::erode(originalImage, erodeImage, element);
-  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(10,10));
+  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(11,11));
 
   GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "eroded_traversability", outputMap, 0.0, 1.0);  
   auto elapsed_custom_filtering = std::chrono::high_resolution_clock::now() - start_custom_filtering;
@@ -242,8 +261,26 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
     if (outputMap.at("eroded_traversability", *iterator) > traverse_thresh) {
       outputMap.getPosition(*iterator, current_pos);
+
+      bool lineNotTravers = false;
+      //int counter = 0;
+      //double value = 0.0;
+      for (grid_map::LineIterator literator(outputMap, pos_robot, current_pos); !literator.isPastEnd(); ++literator){
+        //value += outputMap.at("eroded_traversability", *literator);
+        //counter++;
+        if (outputMap.at("eroded_traversability", *literator) < 0.01){
+          //counter++;
+          lineNotTravers = true;
+          break;
+        }
+      }  
+
+      if (lineNotTravers){
+        continue;
+      } 
+
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot < 1.2) {
+      if (dist_from_robot < 1) {
         current_dist = (pos_goal - current_pos).norm();
         if (current_dist < best_dist) {
           best_dist = current_dist;
