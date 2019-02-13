@@ -157,9 +157,8 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   Eigen::Isometry3d pose_robot, Position pos_goal,
   Eigen::Isometry3d& pose_chosen_carrot)
 {
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start_total = std::chrono::high_resolution_clock::now();
   std::cout << "start - carrot planner\n";
-  tic();
 
   // Compute distance to the goal:
   Position pos_robot( pose_robot.translation().head(2) );
@@ -202,40 +201,49 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   GridMapRosConverter::fromMessage(message, inputMap);
   // Apply filter chain.
   grid_map::GridMap outputMap;
-  tic();
+  auto start_filter_chain = std::chrono::high_resolution_clock::now();
   if (!filterChain_.update(inputMap, outputMap)) {
     ROS_ERROR("Could not update the grid map filter chain!");
     return false;
   }
-  if (verboseTimer_) std::cout << toc().count() << "ms: filter chain\n";
+  auto elapsed_filter_chain = std::chrono::high_resolution_clock::now() - start_filter_chain;
+  long long milliseconds_filter_chain = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_filter_chain).count();
+  std::cout << "Filter chain took " << milliseconds_filter_chain << "ms." << std::endl;
 
+  ////// Our LIDAR Code! ////////////////////////////////////
 
-  ////// Put your code here ////////////////////////////////////
-
-  tic();
-  Position best_pos;
-  Position current_pos;
-  double best_dist = 1000;
-  double current_dist = 0;
-  double dist_from_robot = 0;
+  // Apply our own filtering
+  auto start_custom_filtering = std::chrono::high_resolution_clock::now();
 
   cv::Mat originalImage, erodeImage, smoothedImage;
   int erosion_size = 45;  
   cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, 0.0, 1.0, originalImage);
+  //GridMapCvConverter::toImage<unsigned short, 1>();
 
   cv::erode(originalImage, erodeImage, element);
   cv::blur(erodeImage, smoothedImage, cv::Size_<int>(10,10));
 
   GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "eroded_traversability", outputMap, 0.0, 1.0);  
-  if (verboseTimer_) std::cout << toc().count() << "ms: eroding\n";
+  auto elapsed_custom_filtering = std::chrono::high_resolution_clock::now() - start_custom_filtering;
+  long long milliseconds_custom_filtering = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_custom_filtering).count();
+  std::cout << "Custom filtering took " << milliseconds_custom_filtering << "ms." << std::endl;
 
-  tic();
+  // Search grid for best carrot
+  auto start_carrot_search = std::chrono::high_resolution_clock::now();  
+ 
+  Position best_pos;
+  Position current_pos;
+  double best_dist = 1000;
+  double current_dist = 0;
+  double dist_from_robot = 0;
+ 
+  double traverse_thresh = 0.95;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
-    if (outputMap.at("eroded_traversability", *iterator) > 0.95) {
+    if (outputMap.at("eroded_traversability", *iterator) > traverse_thresh) {
       outputMap.getPosition(*iterator, current_pos);
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot < 1) {
+      if (dist_from_robot < 1.2) {
         current_dist = (pos_goal - current_pos).norm();
         if (current_dist < best_dist) {
           best_dist = current_dist;
@@ -243,9 +251,12 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
         }
       }
     }
-  } 	
-  if (verboseTimer_) std::cout << toc().count() << "ms: finding next goal\n";
+  }
+  auto elapsed_carrot_search = std::chrono::high_resolution_clock::now() - start_carrot_search;
+  long long milliseconds_carrot_search = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_carrot_search).count();
+  std::cout << "Carrot search took " << milliseconds_carrot_search << "ms." << std::endl;
 
+  // Compute correct angle from next carrot
   Eigen::Quaterniond q;
   q = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitX())
     * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY())
@@ -254,7 +265,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
   pose_chosen_carrot.linear() = q.matrix();
 
-  ////// Put your code here ////////////////////////////////////
+  ////// End of our LIDAR code! ////////////////////////////////////
 
 
   // Publish filtered output grid map.
@@ -262,12 +273,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   GridMapRosConverter::toMessage(outputMap, outputMessage);
   outputGridmapPub_.publish(outputMessage);
   if (verbose_) std::cout << "finished processing\n";
-  if (verboseTimer_) std::cout << toc().count() << "ms: publish output\n";
 
-  std::cout << "finish - carrot planner\n";
-  auto elapsed = std::chrono::high_resolution_clock::now() - start;
-  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-  std::cout << milliseconds << "ms: lidar finished\n\n";
+  auto elapsed_total = std::chrono::high_resolution_clock::now() - start_total;
+  long long milliseconds_total = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_total).count();
+  std::cout << milliseconds_total << "ms: lidar finished\n\n";
 
   return true;
 }
