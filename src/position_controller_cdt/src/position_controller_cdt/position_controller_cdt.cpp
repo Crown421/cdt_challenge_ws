@@ -36,9 +36,6 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   // static double integral = 0;
   // Develop your controller here within the calls
 
-  // EXAMPLE HEADING CONTROLLER CODE - ADD YOUR OWN POSITION + HEADING CONTROLLER HERE
-  ///////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////
 
   // convert own orientation to Euler coords
   Eigen::Quaterniond q(current_pose.rotation());
@@ -89,18 +86,25 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
 
   double forward_gain_P = 0.7;
   double forward_gain_I = 0;
-  linear_forward_x = forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
+
+  double max_speed = 0.9;
+  double high_speed = max_speed * (1- error_path_angle/(0.7*M_PI));
+  double forward_contr_speed = forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
+  double high_speed_switch = 0.3;
+  linear_forward_x = (x_error_rob < high_speed_switch) ? forward_contr_speed : high_speed;
 
   double strafe_gain_P = 0.3;
   double strafe_gain_I = 0;
   linear_forward_y = strafe_gain_P * y_error_rob - strafe_gain_I * int_error_y;
 
+
+
   // angular trickery
   // path
 
-  double path_ang_gain_P = 0.8;
+  double path_ang_gain_P = 0.9;
   //double max_path_adjust_thresh = 0.3; //m
-  double path_ang_gain_I = 0.00;
+  double path_ang_gain_I = 0.4;
   //double ang_speed_path_contr = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
   double ang_speed_path = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
 
@@ -108,18 +112,18 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
 
 
   double carr_ang_gain_P = 0.6;
-  double carr_ang_gain_I = 0.0;
+  double carr_ang_gain_I = 0.5;
   double ang_speed_head = carr_ang_gain_P * error_carr_ang + carr_ang_gain_I * int_error_carr_ang;
 
-  double switch_thresh = 0.7;
+  double switch_thresh = 0.3;
   angular_velocity = (x_error_rob < switch_thresh) ? ang_speed_head : ang_speed_path;
   //angular_velocity = ang_speed_path;
 
   // x,y error in robot coordinates
-  int_error_x += x_error_rob;
-  int_error_y += y_error_rob;
-  int_error_path_ang = error_path_angle;
-  int_error_carr_ang = error_carr_ang;
+  int_error_x += x_error_rob/(current_utime - past_utime);
+  int_error_y += y_error_rob/(current_utime - past_utime);
+  int_error_path_ang = error_path_angle/(current_utime - past_utime);
+  int_error_carr_ang = error_carr_ang/(current_utime - past_utime);
 
   past_utime = current_utime;
 
