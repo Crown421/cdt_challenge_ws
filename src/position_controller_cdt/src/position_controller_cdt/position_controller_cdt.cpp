@@ -84,16 +84,19 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   double x_error_rob = x_error_global * cos(current_yaw) + y_error_global * sin(current_yaw);
   double y_error_rob = y_error_global * -sin(current_yaw) + y_error_global * cos(current_yaw);
 
-  double forward_gain_P = 0.7;
+  double forward_gain_P = 1.1;
   double forward_gain_I = 0;
+  //double max_speed = 0.4;
+  //double high_speed = max_speed * (1- error_path_angle/(0.7*M_PI));
 
-  double max_speed = 0.9;
-  double high_speed = max_speed * (1- error_path_angle/(0.7*M_PI));
-  double forward_contr_speed = forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
-  double high_speed_switch = 0.3;
-  linear_forward_x = (x_error_rob < high_speed_switch) ? forward_contr_speed : high_speed;
+  // decrease gain when angular error is high
+  double scal_forward_gain_P = forward_gain_P * (1- 0.3*abs(error_path_angle)/(0.4*M_PI));
+  double forward_contr_speed = scal_forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
+  //double high_speed_switch = 0.1;
+  //linear_forward_x = (x_error_rob < high_speed_switch) ? forward_contr_speed : high_speed;
+  linear_forward_x = forward_contr_speed;
 
-  double strafe_gain_P = 0.3;
+  double strafe_gain_P = 0.4;
   double strafe_gain_I = 0;
   linear_forward_y = strafe_gain_P * y_error_rob - strafe_gain_I * int_error_y;
 
@@ -102,9 +105,11 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   // angular trickery
   // path
 
-  double path_ang_gain_P = 0.9;
+  double path_ang_gain_P = 0.95;
+  // TODO maybe have minimum gain? Thresholding
+  double scal_path_ang_gain = path_ang_gain_P ;//* 1.0 *abs(error_path_angle)/(0.6*M_PI);
   //double max_path_adjust_thresh = 0.3; //m
-  double path_ang_gain_I = 0.4;
+  double path_ang_gain_I = 0.1;
   //double ang_speed_path_contr = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
   double ang_speed_path = path_ang_gain_P * error_path_angle + path_ang_gain_I * int_error_path_ang;
 
@@ -131,7 +136,8 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   ///////////////////////////////////////////////////////////////////////
 
   std::cout << "current_yaw: " << current_yaw << ", raw error: " << error_carr_yaw
-            << ", constrained error: " << error_carr_ang << ", des ang vel: " << angular_velocity << std::endl;
+            << ", constrained error: " << error_carr_ang << ", des ang vel: " << angular_velocity 
+            << ", error_path_angle" << error_path_angle << ", forward gain" << scal_forward_gain_P << std::endl;
 
   
 

@@ -1,0 +1,16 @@
+lineNotTravers = false;
+      //int counter = 0;
+      //double value = 0.0;
+      for (grid_map::LineIterator literator(outputMap, pos_robot, current_pos); !literator.isPastEnd(); ++literator){
+        //value += outputMap.at("eroded_traversability", *literator);
+        //counter++;
+        if (outputMap.at("eroded_traversability", *literator) < 0.01){
+          //counter++;
+          lineNotTravers = true;
+          break;
+        }
+      }  
+
+      if (lineNotTravers){
+        continue;
+      }  
