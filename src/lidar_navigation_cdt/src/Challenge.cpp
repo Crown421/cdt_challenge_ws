@@ -212,6 +212,21 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
   ////// Our LIDAR Code! ////////////////////////////////////
 
+   // convert own orientation to Euler coords
+  Eigen::Quaterniond rob_q(pose_robot.rotation());
+  double current_roll, current_pitch, current_yaw;
+
+  const double q0 = rob_q.w();
+  const double q1 = rob_q.x();
+  const double q2 = rob_q.y();
+  const double q3 = rob_q.z();
+  double rob_yaw = atan2(2*(q0*q3+q1*q2), 1-2*(q2*q2+q3*q3));
+
+
+  Position rob_centre_pos;
+  rob_centre_pos(0) = pos_robot(0) - 0.3 * cos(rob_yaw);
+  rob_centre_pos(1) = pos_robot(1) - 0.3 * sin(rob_yaw);
+
   // Apply our own filtering
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
 
@@ -241,12 +256,19 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   double dist_from_robot = 0;
  
   double traverse_thresh = 0.95;
+  double curr_travers = 0;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
-    if (outputMap.at("eroded_traversability", *iterator) > traverse_thresh) {
+    curr_travers = outputMap.at("eroded_traversability", *iterator);
+    if (curr_travers > traverse_thresh) {
       outputMap.getPosition(*iterator, current_pos);
 
+      double dist_from_robot = (current_pos - pos_robot).norm();
+      if (dist_from_robot > 1.9) {
+        continue;
+      }
+
       bool lineNotTravers = false;
-      for (grid_map::LineIterator literator(outputMap, pos_robot, current_pos); !literator.isPastEnd(); ++literator){
+      for (grid_map::LineIterator literator(outputMap, rob_centre_pos, current_pos); !literator.isPastEnd(); ++literator){
         if (outputMap.at("eroded_traversability", *literator) < 0.2){
           lineNotTravers = true;
           break;
@@ -257,13 +279,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
         continue;
       } 
 
-      double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot < 1.8) {
-        current_dist = (pos_goal - current_pos).norm();
-        if (current_dist < best_dist) {
-          best_dist = current_dist;
-          best_pos = current_pos;
-        }
+      current_dist = (pos_goal - current_pos).norm();
+      if (current_dist < best_dist) {
+        best_dist = current_dist;
+        best_pos = current_pos;
       }
     }
   }
