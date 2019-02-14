@@ -237,9 +237,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1,
  traversableImage);
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation", CV_16UC1, elevation);
+  
 
   cv::erode(traversableImage, erodeImage, element);
-  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(10, 10));
+  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(15, 15));
 
   GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "eroded_traversability", outputMap, 0.0, 1.0);  
   auto elapsed_custom_filtering = std::chrono::high_resolution_clock::now() - start_custom_filtering;
@@ -257,19 +258,20 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
  
   double traverse_thresh = 0.95;
   double curr_travers = 0;
+  bool carrot_found = false;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
     curr_travers = outputMap.at("eroded_traversability", *iterator);
     if (curr_travers > traverse_thresh) {
       outputMap.getPosition(*iterator, current_pos);
 
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot > 1.9) {
+      if (dist_from_robot > 1.3) {
         continue;
       }
 
       bool lineNotTravers = false;
       for (grid_map::LineIterator literator(outputMap, rob_centre_pos, current_pos); !literator.isPastEnd(); ++literator){
-        if (outputMap.at("eroded_traversability", *literator) < 0.2){
+        if (outputMap.at("eroded_traversability", *literator) < 0.15){
           lineNotTravers = true;
           break;
         }
@@ -281,6 +283,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
       current_dist = (pos_goal - current_pos).norm();
       if (current_dist < best_dist) {
+        carrot_found = true;
         best_dist = current_dist;
         best_pos = current_pos;
       }
@@ -296,8 +299,17 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
     * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY())
     * Eigen::AngleAxisd(atan2(best_pos(1)-pos_robot(1), best_pos(0)-pos_robot(0)), Eigen::Vector3d::UnitZ());
 	
-  pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
-  pose_chosen_carrot.linear() = q.matrix();
+  static Eigen::Isometry3d previous_carrot = pose_chosen_carrot; 
+
+  if (carrot_found == true) {
+    pose_chosen_carrot.translation() = Eigen::Vector3d( best_pos(0),best_pos(1),0);
+    pose_chosen_carrot.linear() = q.matrix();
+    previous_carrot = pose_chosen_carrot;
+  }
+  else {
+    pose_chosen_carrot = previous_carrot;
+  }
+;
 
   ////// End of our LIDAR code! ////////////////////////////////////
 
