@@ -224,10 +224,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
 
   ////////////// Parameters ///////////////////////////
-  double length_back = 0.06;
+  double length_back = 0.04;
   double length_side = 0.08; 
   double traverse_thresh = 0.95;
-  double lineSearch_thre = 0.24;
+  double lineSearch_thre = 0.26;
   double max_carrot_dist = 1.4;
   double nose_pos = 0.03;
   Position rob_centre_pos;
@@ -246,12 +246,12 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
 
   cv::Mat traversableImage, erodeImage, smoothedImage;
-  cv::Mat elevation, elevationInpainted, elevationSmooth, normalX, normalY, normalZ, slope, roughness;
+  //cv::Mat elevation, elevationInpainted, elevationSmooth, normalX, normalY, normalZ, slope, roughness;
   int erosion_size = 45;  
   cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
   GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1,
  traversableImage);
-  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation", CV_16UC1, elevation);
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation", CV_16UC1, elevation);
   
 
   cv::erode(traversableImage, erodeImage, element);
