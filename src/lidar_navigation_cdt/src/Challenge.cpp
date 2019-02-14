@@ -19,6 +19,8 @@
 #include <sensor_msgs/image_encodings.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/photo/photo.hpp>
+#include <opencv2/core/eigen.hpp>
 
 #include <eigen_conversions/eigen_msg.h>
 
@@ -202,10 +204,11 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   // Apply filter chain.
   grid_map::GridMap outputMap;
   auto start_filter_chain = std::chrono::high_resolution_clock::now();
-  if (!filterChain_.update(inputMap, outputMap)) {
-    ROS_ERROR("Could not update the grid map filter chain!");
-    return false;
-  }
+  //if (!filterChain_.update(inputMap, outputMap)) {
+  //  ROS_ERROR("Could not update the grid map filter chain!");
+  //  return false;
+  //}
+  outputMap = GridMap(inputMap);
   auto elapsed_filter_chain = std::chrono::high_resolution_clock::now() - start_filter_chain;
   long long milliseconds_filter_chain = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_filter_chain).count();
   std::cout << "Filter chain took " << milliseconds_filter_chain << "ms." << std::endl;
@@ -213,6 +216,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   ////// Our LIDAR Code! ////////////////////////////////////
 
    // convert own orientation to Euler coords
+  /*
   Eigen::Quaterniond rob_q(pose_robot.rotation());
   double current_roll, current_pitch, current_yaw;
 
@@ -222,27 +226,71 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   const double q3 = rob_q.z();
   double rob_yaw = atan2(2*(q0*q3+q1*q2), 1-2*(q2*q2+q3*q3));
 
-
   Position rob_centre_pos;
   rob_centre_pos(0) = pos_robot(0) - 0.3 * cos(rob_yaw);
   rob_centre_pos(1) = pos_robot(1) - 0.3 * sin(rob_yaw);
+  */
 
   // Apply our own filtering
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
 
-  cv::Mat traversableImage, erodeImage, smoothedImage;
-  cv::Mat elevation, elevationInpainted, elevationSmooth, normalX, normalY, normalZ, slope, roughness;
-  int erosion_size = 45;  
-  cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
-  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1,
- traversableImage);
-  GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "elevation", CV_16UC1, elevation);
   
+  cv::Mat elevation, inpaintedElevation, smoothElevation; 
+  GridMapCvConverter::toImage<float, 1>(outputMap, "elevation", CV_32FC1, elevation);
 
-  cv::erode(traversableImage, erodeImage, element);
-  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(15, 15));
+  int erosion_size = 2;  
+  cv::Mat element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
+  cv::erode(elevation, inpaintedElevation, element);
+  cv::dilate(inpaintedElevation, inpaintedElevation, element);
 
-  GridMapCvConverter::addLayerFromImage<unsigned short, 1>(smoothedImage, "eroded_traversability", outputMap, 0.0, 1.0);  
+  cv::blur(inpaintedElevation, smoothElevation, cv::Size_<int>(3, 3));
+  cv::Mat roughness = cv::abs(inpaintedElevation-smoothElevation);
+
+  cv::Mat normalX, normalY, normalZ, norm;
+  cv::Sobel(inpaintedElevation, normalX, -1, 1, 0, 3);
+  cv::Sobel(inpaintedElevation, normalY, -1, 0, 1, 3);
+  normalZ = cv::Mat::ones(normalX.rows, normalY.cols, CV_32FC1);
+  cv::sqrt(normalX.mul(normalX) + normalY.mul(normalY) + normalZ.mul(normalZ), norm);
+  normalZ = normalZ / norm;
+  cv::Mat slope = cv::Mat::ones(normalX.rows, normalY.cols, CV_32FC1);
+  for(int i = 0; i < slope.rows; i++) {
+    for(int j = 0; j < slope.cols; j++) {
+      slope.at<float>(i,j) = acos(normalZ.at<float>(i,j));
+    }
+  } 
+  double current_slope = 0;
+  double current_roughness = 0;
+  double slope_max = 0;
+  double roughness_max = 0;
+  for(int i = 0; i < slope.rows; i++) {
+    for(int j = 0; j < slope.cols; j++) {
+      current_slope = slope.at<float>(i,j);
+      current_roughness = roughness.at<float>(i,j);
+      if (current_slope > slope_max) {
+        slope_max = current_slope;
+      }
+      if (current_roughness > roughness_max) {
+        roughness_max = current_roughness;
+      }
+    }
+  } 
+
+  cv::Mat custom_traversability = 0.5 * (1.0 - (slope / slope_max)) + 0.5 * (1.0 - (roughness / roughness_max));
+  GridMapCvConverter::addLayerFromImage<float, 1>(inpaintedElevation, "custom_inpainted", outputMap); 
+  GridMapCvConverter::addLayerFromImage<float, 1>(normalX, "normalX_custom", outputMap);
+  GridMapCvConverter::addLayerFromImage<float, 1>(normalY, "normalY_custom", outputMap);
+  GridMapCvConverter::addLayerFromImage<float, 1>(normalZ, "normalZ_custom", outputMap);
+  GridMapCvConverter::addLayerFromImage<float, 1>(custom_traversability, "custom_traversability", outputMap); 
+
+  erosion_size = 45;
+  element = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(erosion_size, erosion_size));
+  cv::Mat traversableImage, erodeImage, smoothedImage;
+  //GridMapCvConverter::toImage<unsigned short, 1>(outputMap, "traversability", CV_16UC1, traversableImage);
+  //cv::erode(traversableImage, erodeImage, element);
+  cv::erode(custom_traversability, erodeImage, element);
+  cv::blur(erodeImage, smoothedImage, cv::Size_<int>(5, 5));
+
+  GridMapCvConverter::addLayerFromImage<float, 1>(smoothedImage, "eroded_traversability", outputMap);  
   auto elapsed_custom_filtering = std::chrono::high_resolution_clock::now() - start_custom_filtering;
   long long milliseconds_custom_filtering = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_custom_filtering).count();
   std::cout << "Custom filtering took " << milliseconds_custom_filtering << "ms." << std::endl;
@@ -270,7 +318,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
       }
 
       bool lineNotTravers = false;
-      for (grid_map::LineIterator literator(outputMap, rob_centre_pos, current_pos); !literator.isPastEnd(); ++literator){
+      for (grid_map::LineIterator literator(outputMap, pos_robot, current_pos); !literator.isPastEnd(); ++literator){
         if (outputMap.at("eroded_traversability", *literator) < 0.15){
           lineNotTravers = true;
           break;
@@ -309,7 +357,6 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   else {
     pose_chosen_carrot = previous_carrot;
   }
-;
 
   ////// End of our LIDAR code! ////////////////////////////////////
 
