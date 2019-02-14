@@ -223,18 +223,24 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   double rob_yaw = atan2(2*(q0*q3+q1*q2), 1-2*(q2*q2+q3*q3));
 
 
-  // Position rob_centre_pos;
-  // rob_centre_pos(0) = pos_robot(0) - 0.13 * cos(rob_yaw);
-  // rob_centre_pos(1) = pos_robot(1) - 0.13 * sin(rob_yaw);
-  // double length_back = 0.13;
-  // double length_side = 0.06; 
+  ////////////// Parameters ///////////////////////////
+  double length_back = 0.06;
+  double length_side = 0.07; 
+  double traverse_thresh = 0.95;
+  double lineSearch_thre = 0.25;
+  double max_carrot_dist = 1.3;
+  double nose_pos = 0.03;
+  Position rob_centre_pos;
+  rob_centre_pos(0) = pos_robot(0) + nose_pos * cos(rob_yaw);
+  rob_centre_pos(1) = pos_robot(1) + nose_pos * sin(rob_yaw);
+  
   Position rob_centre_left_pos;
-  rob_centre_left_pos(0) = pos_robot(0) - ( 0.13 * cos(rob_yaw) - (-0.06) * sin(rob_yaw)); 
-  rob_centre_left_pos(1) = pos_robot(1) - ( 0.13 * sin(rob_yaw) + (-0.06) * cos(rob_yaw));
+  rob_centre_left_pos(0) = pos_robot(0) - ( length_back * cos(rob_yaw) - (-length_side) * sin(rob_yaw)); 
+  rob_centre_left_pos(1) = pos_robot(1) - ( length_back * sin(rob_yaw) + (-length_side) * cos(rob_yaw));
 
   Position rob_centre_right_pos;
-  rob_centre_right_pos(0) = pos_robot(0) - ( 0.13 * cos(rob_yaw) - 0.06 * sin(rob_yaw)); 
-  rob_centre_right_pos(1) = pos_robot(1) - ( 0.13 * sin(rob_yaw) + 0.06 * cos(rob_yaw));
+  rob_centre_right_pos(0) = pos_robot(0) - ( length_back * cos(rob_yaw) - length_side * sin(rob_yaw)); 
+  rob_centre_right_pos(1) = pos_robot(1) - ( length_back * sin(rob_yaw) + length_side * cos(rob_yaw));
 
   // Apply our own filtering
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
@@ -265,7 +271,6 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   double current_dist = 0;
   double dist_from_robot = 0;
  
-  double traverse_thresh = 0.95;
   double curr_travers = 0;
   bool carrot_found = false;
   for (grid_map::GridMapIterator iterator(outputMap); !iterator.isPastEnd(); ++iterator) {
@@ -274,14 +279,14 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
       outputMap.getPosition(*iterator, current_pos);
 
       double dist_from_robot = (current_pos - pos_robot).norm();
-      if (dist_from_robot > 1.3) {
+      if (dist_from_robot > max_carrot_dist) {
         continue;
       }
 
       // test left side
       bool leftlineNotTravers = false;
       for (grid_map::LineIterator literator(outputMap, rob_centre_left_pos, current_pos); !literator.isPastEnd(); ++literator){
-        if (outputMap.at("eroded_traversability", *literator) < 0.15){
+        if (outputMap.at("eroded_traversability", *literator) < lineSearch_thre){
           leftlineNotTravers = true;
           break;
         }
@@ -293,7 +298,7 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
       // test right side
       bool rightlineNotTravers = false;
       for (grid_map::LineIterator literator(outputMap, rob_centre_right_pos, current_pos); !literator.isPastEnd(); ++literator){
-        if (outputMap.at("eroded_traversability", *literator) < 0.15){
+        if (outputMap.at("eroded_traversability", *literator) < lineSearch_thre){
           rightlineNotTravers = true;
           break;
         }
@@ -301,6 +306,18 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
       if (rightlineNotTravers){
         continue;
       } 
+
+      // test front of robot
+      // bool robotlineTravers = false;
+      // for (grid_map::LineIterator literator(outputMap, rob_centre_pos, current_pos); !literator.isPastEnd(); ++literator){
+      //   if (outputMap.at("eroded_traversability", *literator) < lineSearch_thre){
+      //     robotlineTravers = true;
+      //     break;
+      //   }
+      // }  
+      // if (robotlineTravers){
+      //   continue;
+      // } 
 
       current_dist = (pos_goal - current_pos).norm();
       if (current_dist < best_dist) {
