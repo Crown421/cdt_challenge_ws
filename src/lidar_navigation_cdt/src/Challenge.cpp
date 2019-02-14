@@ -225,10 +225,10 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
 
   ////////////// Parameters ///////////////////////////
   double length_back = 0.06;
-  double length_side = 0.07; 
+  double length_side = 0.08; 
   double traverse_thresh = 0.95;
-  double lineSearch_thre = 0.25;
-  double max_carrot_dist = 1.3;
+  double lineSearch_thre = 0.24;
+  double max_carrot_dist = 1.4;
   double nose_pos = 0.03;
   Position rob_centre_pos;
   rob_centre_pos(0) = pos_robot(0) + nose_pos * cos(rob_yaw);

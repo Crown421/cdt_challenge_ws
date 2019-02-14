@@ -81,10 +81,11 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   double x_error_global = x_currentgoal - x_pos;
   double y_error_global = y_currentgoal - y_pos; 
 
-  double x_error_rob = x_error_global * cos(current_yaw) + y_error_global * sin(current_yaw) - 0.15;
+  double nose_safety_dist = 0.15;
+  double x_error_rob = x_error_global * cos(current_yaw) + y_error_global * sin(current_yaw) - nose_safety_dist;
   double y_error_rob = y_error_global * -sin(current_yaw) + y_error_global * cos(current_yaw);
 
-  double forward_gain_P = 1.1;
+  double forward_gain_P = 1.3;
   double forward_gain_I = 0;
   //double max_speed = 0.4;
   //double high_speed = max_speed * (1- error_path_angle/(0.7*M_PI));
