@@ -4,6 +4,20 @@ adapt_coordinates:
       target_frame: odom
 
 steps:
+  - step:
+    - base_auto:
+       height: 0.47
+       support_margin: 0.09
+
+  - step:
+    - joint_trajectory:
+       name: RF_LEG
+       ignore_contact: true
+       trajectory:
+        joint_names: [HAA, HFE, KFE]
+        knots:
+         - time: 1.1
+           positions: [deg(15), deg(-120), deg(-45)]
 
   - step:
     - base_trajectory:
@@ -11,39 +25,7 @@ steps:
         frame: footprint
         knots:
          - time: 1.0
-           position: [0.0, 0.0, 0.25]
-           orientation: [0.0, 0.0, 0.0]
-         - time: 3.0
-           position: [0.0, 0.0, 0.55]
-           orientation: [0.0, 0.0, 0.0]
-         - time: 5.0
-           position: [0.0, 0.0, 0.25]
-           orientation: [0.0, 0.0, 0.0]
-         - time: 7.0
-           position: [0.0, 0.0, 0.55]
-           orientation: [0.0, 0.0, 0.0]
-         - time: 9.0
-           position: [0.0, 0.0, 0.45]
-           orientation: [0.0, 0.0, 0.0]
-         - time: 11.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [ deg(20), deg(10), deg(10)]
-         - time: 13.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [deg(20), deg(-10), deg(-10)]
-         - time: 15.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [ deg(-20), deg(-10), deg(-10)]
-         - time: 17.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [deg(-20), deg(-10), deg(10)]
-         - time: 19.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [deg(-20), deg(10), deg(10)]
-         - time: 21.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [deg(20), deg(10), deg(10)]
-         - time: 23.0
-           position: [0.0, 0.0, 0.42]
-           orientation: [0.0, 0.0, 0.0]
+           position: [0.0, 0.0, 0.47]
+           orientation: [deg(10), deg(-10), 0.0]
+
 
