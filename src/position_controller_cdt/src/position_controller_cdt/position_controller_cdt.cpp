@@ -90,7 +90,7 @@ FOLLOWER_OUTPUT PositionController::computeControlCommand(Eigen::Isometry3d curr
   //double high_speed = max_speed * (1- error_path_angle/(0.7*M_PI));
 
   // decrease gain when angular error is high
-  double scal_forward_gain_P = forward_gain_P * (1- 0.9*abs(error_path_angle)/(0.5*M_PI));
+  double scal_forward_gain_P = forward_gain_P * (1- 0.95*abs(error_path_angle)/(0.5*M_PI));
   double forward_contr_speed = scal_forward_gain_P * x_error_rob - forward_gain_I * int_error_x;
   //double high_speed_switch = 0.1;
   //linear_forward_x = (x_error_rob < high_speed_switch) ? forward_contr_speed : high_speed;

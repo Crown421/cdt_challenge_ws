@@ -223,9 +223,18 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
   double rob_yaw = atan2(2*(q0*q3+q1*q2), 1-2*(q2*q2+q3*q3));
 
 
-  Position rob_centre_pos;
-  rob_centre_pos(0) = pos_robot(0) - 0.3 * cos(rob_yaw);
-  rob_centre_pos(1) = pos_robot(1) - 0.3 * sin(rob_yaw);
+  // Position rob_centre_pos;
+  // rob_centre_pos(0) = pos_robot(0) - 0.13 * cos(rob_yaw);
+  // rob_centre_pos(1) = pos_robot(1) - 0.13 * sin(rob_yaw);
+  // double length_back = 0.13;
+  // double length_side = 0.06; 
+  Position rob_centre_left_pos;
+  rob_centre_left_pos(0) = pos_robot(0) - ( 0.13 * cos(rob_yaw) - (-0.06) * sin(rob_yaw)); 
+  rob_centre_left_pos(1) = pos_robot(1) - ( 0.13 * sin(rob_yaw) + (-0.06) * cos(rob_yaw));
+
+  Position rob_centre_right_pos;
+  rob_centre_right_pos(0) = pos_robot(0) - ( 0.13 * cos(rob_yaw) - 0.06 * sin(rob_yaw)); 
+  rob_centre_right_pos(1) = pos_robot(1) - ( 0.13 * sin(rob_yaw) + 0.06 * cos(rob_yaw));
 
   // Apply our own filtering
   auto start_custom_filtering = std::chrono::high_resolution_clock::now();
@@ -269,15 +278,27 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
         continue;
       }
 
-      bool lineNotTravers = false;
-      for (grid_map::LineIterator literator(outputMap, rob_centre_pos, current_pos); !literator.isPastEnd(); ++literator){
+      // test left side
+      bool leftlineNotTravers = false;
+      for (grid_map::LineIterator literator(outputMap, rob_centre_left_pos, current_pos); !literator.isPastEnd(); ++literator){
         if (outputMap.at("eroded_traversability", *literator) < 0.15){
-          lineNotTravers = true;
+          leftlineNotTravers = true;
           break;
         }
       }  
+      if (leftlineNotTravers){
+        continue;
+      } 
 
-      if (lineNotTravers){
+      // test right side
+      bool rightlineNotTravers = false;
+      for (grid_map::LineIterator literator(outputMap, rob_centre_right_pos, current_pos); !literator.isPastEnd(); ++literator){
+        if (outputMap.at("eroded_traversability", *literator) < 0.15){
+          rightlineNotTravers = true;
+          break;
+        }
+      }  
+      if (rightlineNotTravers){
         continue;
       } 
 
@@ -289,6 +310,8 @@ bool NavigationDemo::planCarrot(const grid_map_msgs::GridMap& message,
       }
     }
   }
+
+  // best_pos = rob_centre_right_pos;
   auto elapsed_carrot_search = std::chrono::high_resolution_clock::now() - start_carrot_search;
   long long milliseconds_carrot_search = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_carrot_search).count();
   std::cout << "Carrot search took " << milliseconds_carrot_search << "ms." << std::endl;
